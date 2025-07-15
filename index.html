@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Order Dashboard</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #f4f7fa;
+            margin: 0;
+            padding: 2rem;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: #444;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        .controls input,
+        .controls select {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #ccc;
+            border-radius: 0.25rem;
+            font-size: 1rem;
+        }
+        .orders-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .order-card {
+            background: #fff;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s ease;
+        }
+        .order-card:hover { transform: translateY(-4px); }
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        .order-header span { font-size: 0.9rem; color: #666; }
+        .items-list { list-style: none; padding: 0; margin: 0.5rem 0 1rem; }
+        .items-list li {
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.95rem;
+        }
+        .items-list li:last-child { border-bottom: none; }
+        .order-footer {
+            margin-top: auto;
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            color: #1a73e8;
+        }
+    </style>
+</head>
+<body>
+<h1>All Orders</h1>
+<div class="controls">
+    <input type="text" id="searchInput" placeholder="Search orders..." />
+    <select id="filterPayment">
+        <option value="">All Payments</option>
+        <option value="cash on delivery">Cash on Delivery</option>
+        <option value="QR">QR Code</option>
+        <option value="UPI">UPI</option>
+    </select>
+    <select id="sortSelect">
+        <option value="date_desc">Date: Newest</option>
+        <option value="date_asc">Date: Oldest</option>
+        <option value="total_desc">Total: High to Low</option>
+        <option value="total_asc">Total: Low to High</option>
+        <option value="payment_asc">Payment: A → Z</option>
+        <option value="payment_desc">Payment: Z → A</option>
+    </select>
+</div>
+<div class="orders-container" id="ordersContainer"></div>
+
+<script>
+    let allOrders = [];
+
+    function compare(a, b, key, asc = true) {
+        if (a[key] < b[key]) return asc ? -1 : 1;
+        if (a[key] > b[key]) return asc ? 1 : -1;
+        return 0;
+    }
+
+    function applyFiltersAndSort() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const paymentFilter = document.getElementById('filterPayment').value;
+        const sortOption = document.getElementById('sortSelect').value;
+
+        let filtered = allOrders.filter(order => {
+            const matchSearch = ['id','user','payment']
+                    .some(field => String(order[field]).toLowerCase().includes(searchTerm))
+                || order.items.some(item => item.name.toLowerCase().includes(searchTerm));
+            const matchPayment = !paymentFilter || order.payment === paymentFilter;
+            return matchSearch && matchPayment;
+        });
+
+        const [sortKey, sortDir] = sortOption.split('_');
+        filtered.sort((a, b) => {
+            if (sortKey === 'date') return compare(a, b, 'orderTime', sortDir === 'asc');
+            if (sortKey === 'total') return compare(
+                { total: a.items.reduce((s,i)=> s + parseFloat(i.quantity) * i.price, 0) },
+                { total: b.items.reduce((s,i)=> s + parseFloat(i.quantity) * i.price, 0) },
+                'total', sortDir === 'asc'
+            );
+            if (sortKey === 'payment') return compare(a, b, 'payment', sortDir === 'asc');
+            return 0;
+        });
+
+        renderOrders(filtered);
+    }
+
+    function renderOrders(orders) {
+        const container = document.getElementById('ordersContainer');
+        container.innerHTML = '';
+
+        orders.forEach(order => {
+            const card = document.createElement('div'); card.className = 'order-card';
+            // Header with ID, Date/Time and User
+            // Header with ID, Date/Time and User (in IST)
+            const header = document.createElement('div');
+            header.className = 'order-header';
+
+            const ts = Number(order.orderTime);
+            const dateStr = isNaN(ts)
+                ? 'Unknown date'
+                : new Date(ts).toLocaleString('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    year:   'numeric',
+                    month:  '2-digit',
+                    day:    '2-digit',
+                    hour:   '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                });
+
+            header.innerHTML = `
+  <div>
+    Order #${order.id}<br/>
+    <small style="color:#888">${dateStr}</small>
+  </div>
+  <span>User: ${order.user}</span>
+`;
+            card.appendChild(header);
+
+
+            const ul = document.createElement('ul'); ul.className = 'items-list';
+            order.items.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${item.name}</span><span>${item.quantity} x ₹${item.price}</span>`;
+                ul.appendChild(li);
+            });
+            card.appendChild(ul);
+
+            const total = order.items.reduce((sum, itm) => sum + parseFloat(itm.quantity) * itm.price, 0);
+            const footer = document.createElement('div'); footer.className = 'order-footer';
+            footer.innerHTML = `<span>Payment: ${order.payment}</span><span>Total: ₹${total.toFixed(2)}</span>`;
+            card.appendChild(footer);
+
+            container.appendChild(card);
+        });
+    }
+
+    async function loadOrders() {
+        try {
+            const res = await fetch('/orders');
+            allOrders = await res.json();
+            applyFiltersAndSort();
+        } catch (e) {
+            console.error('Failed to load orders:', e);
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('input', applyFiltersAndSort);
+    document.getElementById('filterPayment').addEventListener('change', applyFiltersAndSort);
+    document.getElementById('sortSelect').addEventListener('change', applyFiltersAndSort);
+
+    window.addEventListener('DOMContentLoaded', loadOrders);
+</script>
+</body>
+</html>
