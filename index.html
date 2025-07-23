@@ -108,7 +108,8 @@
         let filtered = allOrders.filter(order => {
             const matchSearch = ['id','user','payment']
                     .some(field => String(order[field]).toLowerCase().includes(searchTerm))
-                || order.items.some(item => item.name.toLowerCase().includes(searchTerm));
+                || order.items.some(item => itnode server.js
+            em.name.toLowerCase().includes(searchTerm));
             const matchPayment = !paymentFilter || order.payment === paymentFilter;
             return matchSearch && matchPayment;
         });
